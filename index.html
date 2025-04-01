@@ -1,0 +1,410 @@
+
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>რეალისტური & ანიმაციური — მიიღეთ Datos-ის ძიება და პასუხები</title>
+  <style>
+    /* Reset & Global Styles */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1e1e1e, #2a2a2a);
+      color: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow: hidden;
+      min-height: 100vh;
+    }
+    h1, p {
+      margin: 0;
+      padding: 0;
+    }
+    /* ინტერფეისის კონტეინერი */
+    .wiki-container {
+      background: rgba(0, 0, 0, 0.8);
+      border-radius: 12px;
+      padding: 20px;
+      margin: 20px;
+      width: 90%;
+      max-width: 600px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.7);
+      z-index: 10;
+      transition: transform 0.3s ease;
+    }
+    .wiki-container:hover {
+      transform: scale(1.02);
+    }
+    .wiki-container h1 {
+      font-size: 1.8em;
+      margin-bottom: 10px;
+      color: #4fc3f7;
+    }
+    .wiki-container textarea,
+    .wiki-container select {
+      width: 100%;
+      padding: 12px 15px;
+      margin-top: 10px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      background: #222;
+      color: #fff;
+    }
+    .wiki-container textarea {
+      height: 80px;
+      resize: vertical;
+    }
+    .wiki-container button {
+      margin-top: 15px;
+      background: #4fc3f7;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    .wiki-container button:hover {
+      background: #0288d1;
+    }
+    .wiki-container p {
+      margin-top: 15px;
+      font-size: 16px;
+      line-height: 1.4;
+    }
+    /* კონტროლის პანელი */
+    .controls {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: 90%;
+      max-width: 600px;
+      margin-bottom: 15px;
+      z-index: 10;
+    }
+    .controls label {
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .controls input[type="range"] {
+      vertical-align: middle;
+    }
+    .controls button {
+      background: #4fc3f7;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    .controls button:hover {
+      background: #0288d1;
+    }
+    /* კენვასი სტილები */
+    #backgroundCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+    #simulationCanvas {
+      position: relative;
+      z-index: 5;
+      background: transparent;
+    }
+  </style>
+</head>
+<body>
+  <!-- ინტერფეისის კონტეინერი -->
+  <div class="wiki-container">
+    <h1>მიიღეთ Datos-ის ძიება</h1>
+    <textarea id="question" placeholder="შეიყვანეთ შეკითხვა (მაგ., 'Albert Einstein' ან 'შოთა რიძე')..."></textarea>
+    <!-- ენის არჩევის ელემენტიც კვლავ იქმნება -->
+    <select id="langSelector">
+      <option value="ka">ქართული</option>
+      <option value="en">English</option>
+    </select>
+    <button id="askBtn">მიიღეთ პასუხები</button>
+    <p id="response">პასუხი გამოდგება აქ</p>
+  </div>
+  
+  <!-- კონტროლის პანელი სიმულაციისთვის -->
+  <div class="controls">
+    <label>
+      <input type="checkbox" id="toggleTrails" checked> ტრაილები
+    </label>
+    <label>
+      სიმულაციის სიჩქარე:
+      <input type="range" id="speedSlider" min="1" max="10" value="5">
+    </label>
+    <button id="resetBtn">განახლება</button>
+  </div>
+  
+  <!-- dynamic ფერადი ფონური კენვასი (gradient + twinkling stars) -->
+  <canvas id="backgroundCanvas"></canvas>
+  <!-- სიმულაციის კენვასი -->
+  <canvas id="simulationCanvas"></canvas>
+  
+  <script>
+    /* =====================================
+         პასუხების მიღების ფუნქციონალი - Wikipedia-ის ძიება (rebranded როგორც Dados-ის ძიება)
+       ===================================== */
+    async function getWikipediaAnswer(query, lang) {
+      try {
+        const searchUrl = `https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*`;
+        const searchResponse = await fetch(searchUrl);
+        const searchData = await searchResponse.json();
+        if (!searchData.query.search || searchData.query.search.length === 0) {
+          return "Dados-ի ძიება: შედეგი არ მოიძებნა.";
+        }
+        const pageTitle = searchData.query.search[0].title;
+        const summaryUrl = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(pageTitle)}`;
+        const summaryResponse = await fetch(summaryUrl);
+        const summaryData = await summaryResponse.json();
+        return summaryData.extract ? summaryData.extract : "Dados-ის ძიება: გვერდის შეჯამება ვერ მიიღეთ.";
+      } catch (error) {
+        return "Dados-ის ძიება: შეცდომა " + error.message;
+      }
+    }
+    
+    document.getElementById("askBtn").addEventListener("click", async () => {
+      const query = document.getElementById("question").value.trim();
+      const responseElement = document.getElementById("response");
+      const lang = document.getElementById("langSelector").value;
+      if (!query) {
+        alert("გთხოვთ, შეიყვანეთ შეკითხვა!");
+        return;
+      }
+      responseElement.textContent = "გთხოვთ დაელოდოთ...";
+      const wikiAnswer = await getWikipediaAnswer(query, lang);
+      responseElement.textContent = wikiAnswer;
+    });
+    
+    /* =====================================
+         dynamic, ფერადი ფონური კენვასი (gradient-filled + twinkling stars)
+       ===================================== */
+    let stars = [];
+    function initBackground() {
+      const bgCanvas = document.getElementById("backgroundCanvas");
+      const bgCtx = bgCanvas.getContext("2d");
+      bgCanvas.width = window.innerWidth;
+      bgCanvas.height = window.innerHeight;
+      stars = [];
+      for (let i = 0; i < 400; i++) {
+        stars.push({
+          x: Math.random() * bgCanvas.width,
+          y: Math.random() * bgCanvas.height,
+          radius: Math.random() * 1.5,
+          baseAlpha: Math.random() * 0.5 + 0.5,
+          phase: Math.random() * 2 * Math.PI
+        });
+      }
+    }
+    function animateBackground() {
+      const bgCanvas = document.getElementById("backgroundCanvas");
+      const bgCtx = bgCanvas.getContext("2d");
+      let time = Date.now() / 1000;
+      // dynamic gradient: HSL ფერები დროზე გათვალისწინებით
+      let color1 = `hsl(${(time * 30) % 360}, 70%, 50%)`;
+      let color2 = `hsl(${(time * 30 + 120) % 360}, 70%, 50%)`;
+      const gradient = bgCtx.createLinearGradient(0, 0, bgCanvas.width, bgCanvas.height);
+      gradient.addColorStop(0, color1);
+      gradient.addColorStop(1, color2);
+      bgCtx.fillStyle = gradient;
+      bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+      
+      // twinkling stars
+      for (let star of stars) {
+        let alpha = star.baseAlpha + 0.2 * Math.sin(time + star.phase);
+        if (alpha < 0) alpha = 0;
+        bgCtx.beginPath();
+        bgCtx.arc(star.x, star.y, star.radius, 0, 2 * Math.PI);
+        bgCtx.fillStyle = `rgba(255,255,255,${alpha})`;
+        bgCtx.fill();
+      }
+      requestAnimationFrame(animateBackground);
+    }
+    initBackground();
+    animateBackground();
+    
+    /* =====================================
+         რეალისტური n‑body და კომეტების სიმულაცია
+       ===================================== */
+    const simCanvas = document.getElementById("simulationCanvas");
+    const simCtx = simCanvas.getContext("2d");
+    function resizeSimCanvas() {
+      simCanvas.width = window.innerWidth;
+      const containerHeight = document.querySelector(".wiki-container").offsetHeight;
+      const controlsHeight = document.querySelector(".controls").offsetHeight;
+      simCanvas.height = window.innerHeight - containerHeight - controlsHeight - 40;
+      initSimulation();
+      initComets();
+    }
+    window.addEventListener("resize", () => {
+      initBackground();
+      resizeSimCanvas();
+    });
+    resizeSimCanvas();
+    
+    const G = 0.1;
+    let dt = document.getElementById("speedSlider").value / 1000;
+    document.getElementById("speedSlider").addEventListener("input", function() {
+      dt = this.value / 1000;
+    });
+    
+    // სხეულის (Body) კლასი
+    function Body(name, mass, x, y, vx, vy, radius, color, fixed = false) {
+      this.name = name;
+      this.mass = mass;
+      this.x = x;
+      this.y = y;
+      this.vx = vx;
+      this.vy = vy;
+      this.radius = radius;
+      this.color = color;
+      this.fixed = fixed;
+    }
+    let bodies = [];
+    function initSimulation() {
+      bodies = [];
+      const centerX = simCanvas.width / 2;
+      const centerY = simCanvas.height / 2;
+      // მზე: პულსირების ეფექტით
+      bodies.push(new Body("Sun", 10000, centerX, centerY, 0, 0, 30, "yellow", true));
+      let earthDistance = 150;
+      let earthSpeed = Math.sqrt(G * 10000 / earthDistance);
+      bodies.push(new Body("Earth", 10, centerX + earthDistance, centerY, 0, earthSpeed, 8, "blue"));
+      let venusDistance = 100;
+      let venusSpeed = Math.sqrt(G * 10000 / venusDistance);
+      bodies.push(new Body("Venus", 8, centerX + venusDistance, centerY, 0, venusSpeed, 6, "orange"));
+      let marsDistance = 200;
+      let marsSpeed = Math.sqrt(G * 10000 / marsDistance);
+      bodies.push(new Body("Mars", 6, centerX + marsDistance, centerY, 0, marsSpeed, 7, "red"));
+    }
+    initSimulation();
+    
+    function updatePhysics() {
+      for (let i = 0; i < bodies.length; i++) {
+        let body = bodies[i];
+        if (body.fixed) continue;
+        let ax = 0, ay = 0;
+        for (let j = 0; j < bodies.length; j++) {
+          if (i === j) continue;
+          let other = bodies[j];
+          let dx = other.x - body.x;
+          let dy = other.y - body.y;
+          let distSq = dx * dx + dy * dy;
+          let dist = Math.sqrt(distSq);
+          if (dist < body.radius + other.radius) continue;
+          let force = G * other.mass / distSq;
+          ax += force * dx / dist;
+          ay += force * dy / dist;
+        }
+        body.vx += ax * dt;
+        body.vy += ay * dt;
+      }
+      for (let i = 0; i < bodies.length; i++) {
+        let body = bodies[i];
+        if (!body.fixed) {
+          body.x += body.vx * dt;
+          body.y += body.vy * dt;
+        }
+      }
+    }
+    
+    function drawBodies() {
+      for (let body of bodies) {
+        simCtx.beginPath();
+        if (body.name === "Sun") {
+          let pulse = 1 + 0.1 * Math.sin(Date.now() / 200);
+          simCtx.arc(body.x, body.y, body.radius * pulse, 0, 2 * Math.PI);
+        } else {
+          simCtx.arc(body.x, body.y, body.radius, 0, 2 * Math.PI);
+        }
+        simCtx.fillStyle = body.color;
+        simCtx.fill();
+      }
+    }
+    
+    // კომეტების სისტემა
+    let comets = [];
+    function initComets() {
+      comets = [];
+      for (let i = 0; i < 3; i++) {
+        comets.push({
+          x: -50 - i * 100,
+          y: Math.random() * (simCanvas.height / 2),
+          vx: 2 + Math.random() * 1.5,
+          vy: 1 + Math.random(),
+          trail: []
+        });
+      }
+    }
+    initComets();
+    
+    function updateComets() {
+      for (let comet of comets) {
+        comet.x += comet.vx;
+        comet.y += comet.vy;
+        comet.trail.push({ x: comet.x, y: comet.y });
+        if (comet.trail.length > 70) {
+          comet.trail.shift();
+        }
+        if (comet.x > simCanvas.width || comet.y > simCanvas.height) {
+          comet.x = -50;
+          comet.y = Math.random() * (simCanvas.height / 2);
+          comet.trail = [];
+        }
+      }
+    }
+    
+    function drawComets() {
+      for (let comet of comets) {
+        for (let i = 0; i < comet.trail.length; i++) {
+          let point = comet.trail[i];
+          let alpha = (i + 1) / comet.trail.length;
+          simCtx.fillStyle = `rgba(255,255,255,${alpha * 0.8})`;
+          simCtx.beginPath();
+          simCtx.arc(point.x, point.y, 2, 0, Math.PI * 2);
+          simCtx.fill();
+        }
+        simCtx.fillStyle = "rgba(255,255,255,1)";
+        simCtx.beginPath();
+        simCtx.arc(comet.x, comet.y, 4, 0, Math.PI * 2);
+        simCtx.fill();
+      }
+    }
+    
+    function animateSimulation() {
+      const trailsEnabled = document.getElementById("toggleTrails").checked;
+      if (trailsEnabled) {
+        simCtx.fillStyle = "rgba(0,0,0,0.05)";
+        simCtx.fillRect(0, 0, simCanvas.width, simCanvas.height);
+      } else {
+        simCtx.clearRect(0, 0, simCanvas.width, simCanvas.height);
+      }
+      updatePhysics();
+      drawBodies();
+      updateComets();
+      drawComets();
+      requestAnimationFrame(animateSimulation);
+    }
+    animateSimulation();
+    
+    document.getElementById("resetBtn").addEventListener("click", () => {
+      initSimulation();
+      initComets();
+    });
+  </script>
+</body>
+</html>
